@@ -643,7 +643,7 @@ class $$class$$ extends Migration\n\
         try\n\
         {\n\
             DB::transaction(function() {\n\
-                DB::unprepared(<<<EOS\n\
+				DB::unprepared(<<<'EOS'\n\
 $$up$$\n\
 EOS\n\
                 );\n\
@@ -667,7 +667,7 @@ EOS\n\
         try\n\
         {\n\
             DB::transaction(function() {\n\
-                DB::unprepared(<<<EOS\n\
+				DB::unprepared(<<<'EOS'\n\
 $$down$$\n\
 EOS\n\
                 );\n\
