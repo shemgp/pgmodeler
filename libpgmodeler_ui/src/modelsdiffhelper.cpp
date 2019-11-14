@@ -642,6 +642,8 @@ void ModelsDiffHelper::processDiffInfos(void)
 	PhysicalTable *parent_tab=nullptr;
 	bool skip_obj=false;
 	QStringList sch_names;
+	map<unsigned, QString> create_view_objs, alter_view_objs;
+	unsigned largest_object_id = 0;
 
 	try
 	{
@@ -672,6 +674,7 @@ void ModelsDiffHelper::processDiffInfos(void)
 			diff_type=diff.getDiffType();
 			object=diff.getObject();
 			obj_type=object->getObjectType();
+			//qDebug("processDiffInfos:%s[%d] = %s", qUtf8Printable(object->getTypeName()), object->getObjectId(), qUtf8Printable(object->getName()));
 			rel=dynamic_cast<Relationship *>(object);
 			constr=dynamic_cast<Constraint *>(object);
 			col=dynamic_cast<Column *>(object);
@@ -762,7 +765,16 @@ void ModelsDiffHelper::processDiffInfos(void)
 					}
 					else
 					{
-						create_objs[object->getObjectId()]=getCodeDefinition(object, false);
+						if (object->getObjectType() == ObjectType::View)
+						{
+							create_view_objs[object->getObjectId()]=getCodeDefinition(object, false);
+						}
+						else
+						{
+							if (object->getObjectId() > largest_object_id)
+								largest_object_id = object->getObjectId();
+							create_objs[object->getObjectId()]=getCodeDefinition(object, false);
+						}
 
 						if(obj_type==ObjectType::Schema)
 							sch_names.push_back(object->getName(true));
@@ -801,7 +813,16 @@ void ModelsDiffHelper::processDiffInfos(void)
 									create_constrs[obj->getObjectId()]=getCodeDefinition(obj, false);
 							}
 							else
-								create_objs[obj->getObjectId()]=getCodeDefinition(obj, false);
+								if (object->getObjectType() == ObjectType::View)
+								{
+									alter_view_objs[obj->getObjectId()]=getCodeDefinition(obj, false);
+								}
+								else
+								{
+									if (object->getObjectId() > largest_object_id)
+										largest_object_id = obj->getObjectId();
+									create_objs[obj->getObjectId()]=getCodeDefinition(obj, false);
+								}
 						}
 					}
 
@@ -840,6 +861,12 @@ void ModelsDiffHelper::processDiffInfos(void)
 				}
 			}
 		}
+
+		for(auto &object: create_view_objs)
+			create_objs[largest_object_id + object.first] = object.second;
+		for(auto &object: alter_view_objs)
+			create_objs[largest_object_id + object.first] = object.second;
+
 
 		//Creating the shell types declaration right below on the DDL that creates their schemas
 		for(Type *type : types)
