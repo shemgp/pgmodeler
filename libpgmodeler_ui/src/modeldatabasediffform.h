@@ -159,6 +159,8 @@ class ModelDatabaseDiffForm: public BaseConfigWidget, public Ui::ModelDatabaseDi
 		void handleExportFinished();
 		void handleErrorIgnored(QString err_code, QString err_msg, QString cmd);
 		void importDatabase(unsigned thread_id);
+		void selectOutputMigrationFolder(void);
+		QString laravelMigrationFolderSetting(QString value = "");
 		void diffModels();
 		void exportDiff(bool confirm=true);
 		void filterDiffInfos();

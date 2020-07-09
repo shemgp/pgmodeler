@@ -182,9 +182,9 @@ else
            libQt5Core.so.5 \
            libQt5XcbQpa.so.5 \
            libQt5Svg.so.5 \
-           libicui18n.so.5* \
-           libicuuc.so.5* \
-           libicudata.so.5*"
+           libicui18n.so.* \
+           libicuuc.so.* \
+           libicudata.so.*"
 fi
 
 clear 
@@ -296,7 +296,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo "Compiling code..."
-make -j10  >> $LOG 2>&1
+make -j16  >> $LOG 2>&1
 
 if [ $? -ne 0 ]; then
   echo
