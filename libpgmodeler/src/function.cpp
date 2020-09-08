@@ -31,23 +31,23 @@ Function::Function()
 	execution_cost=100;
 	row_amount=1000;
 
-	attributes[Attributes::Parameters]=QString();
-	attributes[Attributes::ExecutionCost]=QString();
-	attributes[Attributes::RowAmount]=QString();
-	attributes[Attributes::ReturnType]=QString();
-	attributes[Attributes::FunctionType]=QString();
-	attributes[Attributes::Language]=QString();
-	attributes[Attributes::ReturnsSetOf]=QString();
-	attributes[Attributes::SecurityType]=QString();
-	attributes[Attributes::BehaviorType]=QString();
-	attributes[Attributes::Definition]=QString();
-	attributes[Attributes::Signature]=QString();
-	attributes[Attributes::RefType]=QString();
-	attributes[Attributes::WindowFunc]=QString();
-	attributes[Attributes::ReturnTable]=QString();
-	attributes[Attributes::Library]=QString();
-	attributes[Attributes::Symbol]=QString();
-	attributes[Attributes::LeakProof]=QString();
+	attributes[Attributes::Parameters]="";
+	attributes[Attributes::ExecutionCost]="";
+	attributes[Attributes::RowAmount]="";
+	attributes[Attributes::ReturnType]="";
+	attributes[Attributes::FunctionType]="";
+	attributes[Attributes::Language]="";
+	attributes[Attributes::ReturnsSetOf]="";
+	attributes[Attributes::SecurityType]="";
+	attributes[Attributes::BehaviorType]="";
+	attributes[Attributes::Definition]="";
+	attributes[Attributes::Signature]="";
+	attributes[Attributes::RefType]="";
+	attributes[Attributes::WindowFunc]="";
+	attributes[Attributes::ReturnTable]="";
+	attributes[Attributes::Library]="";
+	attributes[Attributes::Symbol]="";
+	attributes[Attributes::LeakProof]="";
 }
 
 void Function::setName(const QString &name)
@@ -129,13 +129,12 @@ void Function::addReturnedTableColumn(const QString &name, PgSqlType type)
 void Function::setParametersAttribute(unsigned def_type)
 {
 	QString str_param;
-	unsigned i, count;
+	QStringList fmt_params;
 
-	count=parameters.size();
-	for(i=0; i < count; i++)
-	{
-		str_param+=parameters[i].getCodeDefinition(def_type);
-	}
+	for(auto &param : parameters)
+		fmt_params.append(param.getCodeDefinition(def_type));
+
+	str_param = fmt_params.join("");
 
 	if(def_type==SchemaParser::SqlDefinition)
 		str_param.remove(str_param.size()-2,2);
@@ -423,29 +422,27 @@ QString Function::getSignature(bool)
 
 void Function::createSignature(bool format, bool prepend_schema)
 {
-	QString str_params, aux_str;
-	unsigned i, count;
+	QString aux_str;
+	QStringList fmt_params;
 
-	count=parameters.size();
-	for(i=0; i < count; i++)
+	for(auto &param : parameters)
 	{
 		//OUT parameters is not part of function's signature
-		if(!parameters[i].isOut() || parameters[i].isVariadic() ||
-				(parameters[i].isIn() && parameters[i].isOut()) ||
-				(parameters[i].isIn() && !parameters[i].isOut()))
+		if(!param.isOut() || param.isVariadic() ||
+				(param.isIn() && param.isOut()) ||
+				(param.isIn() && !param.isOut()))
 		{
 			/* Removing the arg mode IN from parameter signature because this is de default for any kind of parameter
 			 * So in order to avoid signature conflicts (mainly whe diff functions) we remove it */
-			aux_str=parameters[i].getCodeDefinition(SchemaParser::SqlDefinition, true).replace(QRegExp("^(IN)( )"),"");
-			str_params+=aux_str.trimmed();
-			parameters[i].setCodeInvalidated(true);
+			aux_str = param.getCodeDefinition(SchemaParser::SqlDefinition, true).replace(QRegExp("^(IN)( )"),"").trimmed();
+			aux_str.remove(',');
+			fmt_params.append(aux_str);
+			param.setCodeInvalidated(true);
 		}
 	}
 
-	str_params.remove(str_params.length()-1, 1);
-
 	//Signature format NAME(IN|OUT PARAM1_TYPE,IN|OUT PARAM2_TYPE,...,IN|OUT PARAMn_TYPE)
-	signature=this->getName(format, prepend_schema) + QString("(") + str_params + QString(")");
+	signature=this->getName(format, prepend_schema) + QString("(") + fmt_params.join(", ") + QString(")");
 	this->setCodeInvalidated(true);
 }
 
@@ -487,9 +484,9 @@ QString Function::getCodeDefinition(unsigned def_type, bool reduced_form)
 
 	setTableReturnTypeAttribute(def_type);
 
-	attributes[Attributes::ReturnsSetOf]=(returns_setof ? Attributes::True : QString());
-	attributes[Attributes::WindowFunc]=(is_wnd_function ? Attributes::True : QString());
-	attributes[Attributes::LeakProof]=(is_leakproof ? Attributes::True : QString());
+	attributes[Attributes::ReturnsSetOf]=(returns_setof ? Attributes::True : "");
+	attributes[Attributes::WindowFunc]=(is_wnd_function ? Attributes::True : "");
+	attributes[Attributes::LeakProof]=(is_leakproof ? Attributes::True : "");
 	attributes[Attributes::SecurityType]=~security_type;
 	attributes[Attributes::BehaviorType]=~behavior_type;
 	attributes[Attributes::Definition]=source_code;
@@ -559,7 +556,7 @@ void Function::configureSearchAttributes()
 	QStringList param_types;
 
 	BaseObject::configureSearchAttributes();
-	search_attribs[Attributes::ReturnType] = ret_table_columns.empty() ? *return_type : QString();
+	search_attribs[Attributes::ReturnType] = ret_table_columns.empty() ? *return_type : "";
 
 	for(auto &param : parameters)
 		param_types += *param.getType();

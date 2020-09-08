@@ -422,6 +422,7 @@ ModelWidget::ModelWidget(QWidget *parent) : QWidget(parent)
 	new_obj_overlay_wgt=new NewObjectOverlayWidget(this);
 	new_obj_overlay_wgt->setObjectName(QString("new_obj_overlay_wgt"));
 	new_obj_overlay_wgt->setVisible(false);
+	PgModelerUiNs::createDropShadow(new_obj_overlay_wgt, 5, 5, 20);
 
 	vector<ObjectType> graph_types = { ObjectType::BaseObject, ObjectType::Schema, ObjectType::Table, ObjectType::ForeignTable,
 																		 ObjectType::View, ObjectType::Relationship, ObjectType::Textbox };
@@ -1898,7 +1899,7 @@ int ModelWidget::openEditingForm(QWidget *widget, unsigned button_conf)
 		editing_form.setMainWidget(base_obj_wgt);
 
 		if(rel)
-			class_name.prepend(rel->getRelationshipTypeName().replace(QRegExp("( )+|(\\-)+"), QString()));
+			class_name.prepend(rel->getRelationshipTypeName().replace(QRegExp("( )+|(\\-)+"), ""));
 	}
 	else
 		editing_form.setMainWidget(widget);
@@ -2263,6 +2264,10 @@ void ModelWidget::moveToLayer()
 	for(auto &obj : selected_objects)
 	{
 		graph_obj = dynamic_cast<BaseGraphicObject *>(obj);
+
+		if(!graph_obj)
+			continue;
+
 		graph_obj->setLayer(layer_id);
 	}
 
@@ -2941,7 +2946,7 @@ void ModelWidget::pasteObjects(bool duplicate_mode)
 	{
 		Messagebox msg_box;
 		msg_box.show(Exception(tr("Not all objects were pasted to the model due to errors returned during the process! Refer to error stack for more details!"),
-								 ErrorCode::Custom,__PRETTY_FUNCTION__,__FILE__,__LINE__, errors), QString(),
+								 ErrorCode::Custom,__PRETTY_FUNCTION__,__FILE__,__LINE__, errors), "",
 								 Messagebox::AlertIcon);
 	}
 
@@ -3057,6 +3062,8 @@ void ModelWidget::duplicateObject()
 			copyObjects(true);
 			pasteObjects(true);
 		}
+
+		selected_objects.clear();
 	}
 	catch(Exception &e)
 	{
@@ -3157,7 +3164,7 @@ void ModelWidget::removeObjects(bool cascade)
 									(!tab_obj || (tab_obj && !tab_obj->isAddedByRelationship())))
 							{
 								parent_type=(tab_obj ? tab_obj->getParentTable()->getObjectType() : ObjectType::Database);
-								parent_name=(tab_obj ? tab_obj->getParentTable()->getName(true) : QString());
+								parent_name=(tab_obj ? tab_obj->getParentTable()->getName(true) : "");
 								obj_name=(tab_obj ? tab_obj->getName() : ref_obj->getSignature());
 
 								objs_map[ref_obj->getObjectId()]=std::make_tuple(ref_obj,
@@ -3203,7 +3210,7 @@ void ModelWidget::removeObjects(bool cascade)
 						tab_obj=dynamic_cast<TableObject *>(object);
 						obj_name=(tab_obj ? object->getName(true) : object->getSignature());
 
-						parent_name=(tab_obj ? tab_obj->getParentTable()->getName(true) : QString());
+						parent_name=(tab_obj ? tab_obj->getParentTable()->getName(true) : "");
 						parent_type=(tab_obj ? tab_obj->getParentTable()->getObjectType() : ObjectType::Database);
 
 						objs_map[object->getObjectId()]=std::make_tuple(object,
@@ -3285,9 +3292,8 @@ void ModelWidget::removeObjects(bool cascade)
 									db_model->validateColumnRemoval(dynamic_cast<Column *>(tab_obj));
 
 								//Register the removed object on the operation list
-								table->removeObject(obj_idx, obj_type);
 								op_list->registerObject(tab_obj, Operation::ObjectRemoved, obj_idx, table);
-
+								table->removeObject(obj_idx, obj_type);
 								db_model->removePermissions(tab_obj);
 
 								aux_table=dynamic_cast<Table *>(table);
@@ -4562,7 +4568,7 @@ void ModelWidget::highlightObject()
 
 void ModelWidget::toggleNewObjectOverlay()
 {
-	if(new_obj_overlay_wgt->isHidden() &&
+if(new_obj_overlay_wgt->isHidden() &&
 			(selected_objects.empty() || selected_objects[0]->getObjectType()!=ObjectType::BaseRelationship))
 	{
 		new_obj_overlay_wgt->raise();
@@ -4666,7 +4672,7 @@ void ModelWidget::convertIntegerToSerial()
 			serial_tp=QString("bigserial");
 
 		col->setType(PgSqlType(serial_tp));
-		col->setDefaultValue(QString());
+		col->setDefaultValue("");
 
 		//Revalidate the relationships since the modified column can be a primary key
 		if(tab->getPrimaryKey()->isColumnReferenced(col))
