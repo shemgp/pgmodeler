@@ -874,7 +874,6 @@ EOS\n\
 			diff_helper2->setDiffOption(ModelsDiffHelper::OptCascadeMode, cascade_mode_chk->isChecked());
 			diff_helper2->setDiffOption(ModelsDiffHelper::OptTruncateTables, trunc_tables_chk->isChecked());
 			diff_helper2->setDiffOption(ModelsDiffHelper::OptForceRecreation, force_recreation_chk->isChecked());
-			diff_helper2->setDiffOption(ModelsDiffHelper::OptRecreateUnchangeble, recreate_unmod_chk->isChecked());
 			diff_helper2->setDiffOption(ModelsDiffHelper::OptKeepObjectPerms, keep_obj_perms_chk->isChecked());
 			diff_helper2->setDiffOption(ModelsDiffHelper::OptReuseSequences, reuse_sequences_chk->isChecked());
 			diff_helper2->setDiffOption(ModelsDiffHelper::OptPreserveDbName, preserve_db_name_chk->isChecked());
@@ -916,7 +915,8 @@ EOS\n\
 			output.write(laravel_migration.toUtf8());
 			output.close();
 
-			delete(diff_helper2);
+			diff_helper2=nullptr;
+			delete diff_helper2;
 
 		}
 	}
