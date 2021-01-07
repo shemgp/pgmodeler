@@ -29,6 +29,7 @@ const QString Catalog::GetExtensionObjsSql("SELECT objid AS oid FROM pg_depend W
 const QString Catalog::PgModelerTempDbObj("__pgmodeler_tmp");
 const QString Catalog::InvFilterPattern("__invalid__pattern__");
 const QString Catalog::AliasPlaceholder("$alias$");
+const QString Catalog::EscapedNullChar("\\000");
 
 attribs_map Catalog::catalog_queries;
 
@@ -42,7 +43,8 @@ map<ObjectType, QString> Catalog::oid_fields=
 	{ObjectType::Table, "tb.oid"}, {ObjectType::Column, "cl.oid"}, {ObjectType::Constraint, "cs.oid"},
 	{ObjectType::Rule, "rl.oid"}, {ObjectType::Trigger, "tg.oid"}, {ObjectType::Index, "id.indexrelid"},
 	{ObjectType::EventTrigger, "et.oid"}, {ObjectType::Policy, "pl.oid"}, {ObjectType::ForeignDataWrapper, "fw.oid"},
-	{ObjectType::ForeignServer, "sv.oid"}, {ObjectType::UserMapping, "um.umid"}, {ObjectType::ForeignTable, "ft.oid"}
+	{ObjectType::ForeignServer, "sv.oid"}, {ObjectType::UserMapping, "um.umid"}, {ObjectType::ForeignTable, "ft.oid"},
+	{ObjectType::Transform, "tr.oid"}, {ObjectType::Procedure, "pr.oid"}
 };
 
 map<ObjectType, QString> Catalog::ext_oid_fields={
@@ -71,7 +73,8 @@ map<ObjectType, QString> Catalog::name_fields=
 	{ObjectType::Table, "relname"}, {ObjectType::Column, "attname"}, {ObjectType::Constraint, "conname"},
 	{ObjectType::Rule, "rulename"}, {ObjectType::Trigger, "tgname"}, {ObjectType::Index, "cl.relname"},
 	{ObjectType::EventTrigger, "evtname"}, {ObjectType::Policy, "polname"}, {ObjectType::ForeignDataWrapper, "fdwname"},
-	{ObjectType::ForeignServer, "srvname"}, {ObjectType::ForeignTable, "relname"}
+	{ObjectType::ForeignServer, "srvname"}, {ObjectType::ForeignTable, "relname"}, {ObjectType::Transform, ""},
+	{ObjectType::Procedure, "proname"}
 };
 
 Catalog::Catalog()
@@ -989,57 +992,96 @@ QStringList Catalog::parseArrayValues(const QString &array_val)
 	return list;
 }
 
-QStringList Catalog::parseDefaultValues(const QString &def_vals, const QString &str_delim, const QString &val_sep)
+QStringList Catalog::parseDefaultValues(const QString &def_values, const QString &str_delim, const QString &val_sep)
 {
-	int idx=0, delim_start, delim_end, sep_idx, pos=0;
+	int idx = 0, delim_start, delim_end, sep_idx, pos = -1;
 	QStringList values;
+	QString array_expr = "ARRAY[", aux_def_vals = def_values, array_val;
 
-	while(idx < def_vals.size())
+	/* Special case for ARRAY[M, .. , N] values:
+	 *
+	 * We need to replace temporarily the element separators (generally comma)
+	 * by another character in order to avoid splitting the string in a vector
+	 * greater than the passed default values define. *
+	 *
+	 * Example:
+	 * Supposing the default value string "0, '*', ARRAY[0, 1, 2 ,3], 'foo', ARRAY['a', 'b', 'c']"
+	 * If the elements ARRAY[] are not treated properly, in the final result we'll have
+	 * a QStringList with 10 elements but the correct must be 5 since the commas inside ARRAY[]
+	 * must not be considered when splitting the provided string. */
+
+	do
+	{
+		pos = aux_def_vals.indexOf(array_expr, pos + 1);
+
+		if(pos >= 0)
+		{
+			idx = aux_def_vals.indexOf(QString("], "), pos + 1);
+
+			if(idx < 0)
+				idx = aux_def_vals.indexOf(']', pos + 1);
+
+			array_val = aux_def_vals.mid(pos, (idx - pos) + 1);
+			array_val.replace(",", PgModelerNs::DataSeparator);
+			aux_def_vals.replace(pos, array_val.size(), array_val);
+		}
+	}
+	while(pos >= 0);
+
+	pos = idx = 0;
+	while(idx < aux_def_vals.size())
 	{
 		//Get the index of string delimiters (default: ')
-		delim_start=def_vals.indexOf(str_delim, idx);
-		delim_end=def_vals.indexOf(str_delim, delim_start + 1);
+		delim_start = aux_def_vals.indexOf(str_delim, idx);
+		delim_end = aux_def_vals.indexOf(str_delim, delim_start + 1);
 
 		/* Get the index of value separator on default value string
 			 (by default the pg_get_expr separates values by comma and space (, ) */
-		sep_idx=def_vals.indexOf(val_sep, idx);
+		sep_idx = aux_def_vals.indexOf(val_sep, idx);
 
 		/* If there is no separator on string (only one value) or the is
 			 beyond the string delimiters or even there is no string delimiter on string */
 		if(sep_idx < 0 ||
 				(sep_idx >=0 && delim_start >= 0 && delim_end >= 0 &&
-				 (sep_idx < delim_start || sep_idx > delim_end)) ||
-				(sep_idx >=0 && (delim_start < 0 || delim_end < 0)))
+				(sep_idx < delim_start || sep_idx > delim_end)) ||
+				(sep_idx >= 0 && (delim_start < 0 || delim_end < 0)))
 		{
 			//Extract the value from the current position
-			values.push_back(def_vals.mid(pos, sep_idx-pos).trimmed());
+			values.push_back(aux_def_vals.mid(pos, sep_idx - pos).trimmed());
 
 			//If there is no separator on string indicates that it contains only one value
 			if(sep_idx < 0)
 				//Forcing the loop abort
-				idx=def_vals.size();
+				idx = aux_def_vals.size();
 			else
 			{
 				//Passing to the next value right after the separator
-				pos=sep_idx+1;
-				idx=pos;
+				pos = sep_idx+1;
+				idx = pos;
 			}
 		}
 		/* If the separator is between a string delimitation e.g.'abc, def' it will be ignored
 		and the current postion will be moved to the first char after string delimiter */
-		else if(delim_start>=0 && delim_end >= 0 &&
-				sep_idx >= delim_start && sep_idx <=delim_end)
+		else if(delim_start >= 0 && delim_end >= 0 &&
+						sep_idx >= delim_start && sep_idx <= delim_end)
 		{
-			idx=delim_end+1;
+			idx = delim_end + 1;
 
 			/* If the index reaches the end of string but the cursor (pos) isn't at end
 			indicates that the last values wasn't retrieved, this way, the value will be
 			pushed to list of values */
-			if(idx >= def_vals.size() && pos < def_vals.size())
-				values.push_back(def_vals.mid(pos, def_vals.size()));
+			if(idx >= aux_def_vals.size() && pos < aux_def_vals.size())
+				values.push_back(aux_def_vals.mid(pos, aux_def_vals.size()));
 		}
 		else
 			idx++;
+	}
+
+	// Converting back the separators of elements in ARRAY[] values
+	for(auto &val : values)
+	{
+		if(val.contains(array_expr))
+			val.replace(PgModelerNs::DataSeparator, ",");
 	}
 
 	return values;
